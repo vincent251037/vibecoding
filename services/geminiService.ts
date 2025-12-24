@@ -47,24 +47,17 @@ export async function transcribeAudio(
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
-    // 顯式定義 parts 類型並使用 push 避免 tsc 合併錯誤
-    const parts: any[] = [];
-    
-    for (const audio of audioParts) {
-      parts.push({ inlineData: { data: audio.data, mimeType: audio.mimeType } });
-    }
-    
-    for (const ref of referenceFiles) {
-      parts.push({ inlineData: { data: ref.data, mimeType: ref.mimeType } });
-    }
-    
-    parts.push({
-      text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
-    });
-
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: { parts },
+      contents: {
+        parts: [
+          ...audioParts.map(a => ({ inlineData: { data: a.data, mimeType: a.mimeType } })),
+          ...referenceFiles.map(f => ({ inlineData: { data: f.data, mimeType: f.mimeType } })),
+          {
+            text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
+          }
+        ]
+      },
       config: {
         systemInstruction: getSystemInstruction(courseName, sessionTitle),
         responseMimeType: "application/json",
@@ -85,7 +78,7 @@ export async function transcribeAudio(
     
     return { 
       ...result, 
-      id: `trans-${crypto.randomUUID()}`, 
+      id: `trans-${self.crypto.randomUUID()}`, 
       timestamp: Date.now(), 
       courseName,
       latestVersion: 0,
@@ -101,7 +94,9 @@ export async function generateStudyNotes(content: string, title: string, courseN
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: `主題：${title}\n\n內容：\n${content}`,
+    contents: {
+      parts: [{ text: `主題：${title}\n\n內容：\n${content}` }]
+    },
     config: {
       systemInstruction: getNotesSystemInstruction(courseName),
       thinkingConfig: { thinkingBudget: 16384 },
