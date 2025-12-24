@@ -49,10 +49,10 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  // Always initialize right before use to capture latest process.env.API_KEY
+  // 每次呼叫時重新取得 API KEY 確保最新
   const apiKey = (process as any).env?.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key is missing. Please authorize your key in the header.");
+    throw new Error("API Key is missing. 請先點擊畫面右上方的「授權金鑰」。");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -70,12 +70,13 @@ export async function transcribeAudio(
   });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3-flash-preview', // 改用 Flash 模型
     contents: { parts },
     config: {
       systemInstruction: getSystemInstruction(courseName, sessionTitle),
       responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 32768 },
+      // Flash 模型同樣支援思考模式，但建議稍微減少預算以換取更快的速度
+      thinkingConfig: { thinkingBudget: 16384 },
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -106,11 +107,10 @@ export async function generateStudyNotes(content: string, title: string, courseN
   }
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3-flash-preview', // 改用 Flash 模型
     contents: `主題：${title}\n\n內容：\n${content}`,
     config: {
       systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋。`,
-      thinkingConfig: { thinkingBudget: 16384 },
     }
   });
   return response.text || "";

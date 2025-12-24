@@ -62,7 +62,6 @@ const App: React.FC = () => {
       if (aistudio) {
         const hasKey = await aistudio.hasSelectedApiKey();
         if (!hasKey) {
-          // As per instruction: proceed to app, but inform user they'll need a key
           console.log("No API Key selected yet.");
         }
       }
@@ -155,15 +154,12 @@ const App: React.FC = () => {
     }
 
     try {
-      // Step 1: Force key selection if process.env.API_KEY is missing
       const hasKey = await aistudio.hasSelectedApiKey();
       const currentKey = (process as any).env?.API_KEY;
       
       if (!hasKey || !currentKey) {
-        alert("使用 Gemini 3 Pro 進行學術轉錄需先「授權 API 金鑰」。授權完成後，請再次點擊「啟動學術轉錄」。");
+        alert("系統偵測到金鑰尚未設定。正在開啟授權視窗，請選取一個 API 金鑰。授權完成後，請再次點擊「啟動學術轉錄」。");
         await aistudio.openSelectKey();
-        // Return here. Do NOT proceed to transcribeAudio because the key 
-        // won't be in process.env.API_KEY in the current execution frame.
         return;
       }
 
@@ -187,11 +183,11 @@ const App: React.FC = () => {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
       
-      // Handle the specific error string from the Gemini SDK
+      // 針對 SDK 拋出的金鑰錯誤進行引導
       if (e.message?.includes("API Key must be set") || 
           e.message?.includes("Requested entity was not found") || 
           e.message?.includes("API Key is missing")) {
-        alert("API 金鑰驗證失敗。請重新點擊「授權金鑰」並選取有效的付費專案金鑰。");
+        alert("金鑰無效或尚未成功注入。請點擊右上角「授權金鑰」並重新選取金鑰。");
         await aistudio.openSelectKey();
       } else {
         alert(`轉錄失敗: ${e.message || "未知錯誤"}`);
@@ -247,7 +243,7 @@ const App: React.FC = () => {
             <i className={`fa-solid ${selectedCourse.includes("佛") ? 'fa-dharmachakra' : 'fa-brain'} animate-spin-slow`}></i> {selectedCourse}轉錄專家
           </h1>
           <p className="text-[#9a3412] mt-1 italic flex items-center gap-2">
-            <i className="fa-solid fa-feather-pointed"></i> 學術校對與多版本筆記管理系統
+            <i className="fa-solid fa-feather-pointed"></i> 學術校對與多版本筆記管理系統 (Flash 版)
           </p>
         </div>
         
@@ -255,7 +251,7 @@ const App: React.FC = () => {
           <button 
             onClick={handleSelectApiKey}
             className="flex items-center gap-2 bg-[#d4a017] hover:bg-[#b8860b] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95"
-            title="選取付費專案 API 金鑰"
+            title="選取 API 金鑰"
           >
             <i className="fa-solid fa-key"></i> 授權金鑰
           </button>
@@ -413,7 +409,7 @@ const App: React.FC = () => {
                 )}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center px-6 italic">使用 Gemini 3 Pro 模型。第一次啟動需點擊「授權金鑰」以執行深度語義校正。</p>
+              <p className="text-[10px] text-stone-400 text-center px-6 italic">已切換至 Gemini 3.0 Flash 模型，轉錄速度更快。若出現金鑰錯誤，請重新授權。</p>
             </div>
           </div>
         </section>
