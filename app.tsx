@@ -94,37 +94,14 @@ const App: React.FC = () => {
     }
   };
 
-  // 增強型拖放處理
-  const handleDragOver = (e: React.DragEvent) => {
+  // 簡化後的穩定拖放邏輯
+  const preventDefaults = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleDragEnter = (e: React.DragEvent, setDragging: (v: boolean) => void) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent, setDragging: (v: boolean) => void) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // 檢查是否真的離開了容器而不是進入了子元素
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (
-      e.clientX < rect.left ||
-      e.clientX >= rect.right ||
-      e.clientY < rect.top ||
-      e.clientY >= rect.bottom
-    ) {
-      setDragging(false);
-    }
   };
 
   const handleDrop = (e: React.DragEvent, isAudio: boolean, setDragging: (v: boolean) => void) => {
-    e.preventDefault();
-    e.stopPropagation();
+    preventDefaults(e);
     setDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processFiles(e.dataTransfer.files, isAudio);
@@ -151,7 +128,7 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
-      alert(`轉錄失敗: ${e.message || "請確保環境配置正確。"}`);
+      alert(`轉錄失敗: ${e.message || "請確保 API Key 配置正確。"}`);
     }
   };
 
@@ -244,73 +221,81 @@ const App: React.FC = () => {
             <div className="space-y-6">
               <div>
                 <label className="block text-xs font-bold text-[#7c2d12] mb-2 uppercase tracking-widest">課程主題</label>
-                <input value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} placeholder="輸入課程紀錄標題..." className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none text-lg font-medium" />
+                <input value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} placeholder="輸入課程紀錄標題..." className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none text-lg font-medium focus:ring-2 focus:ring-[#7c2d12]/20 transition-all" />
               </div>
 
-              {/* 音檔上傳區塊 - 強化拖放 */}
+              {/* 音檔上傳區塊 - 全新透明遮罩方案 */}
               <div 
-                className={`relative group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingAudio ? 'border-solid border-[#7c2d12] bg-[#7c2d12]/5 scale-[1.02] shadow-inner' : 'border-dashed border-[#e6d5b8] bg-[#fffcf5]'}`}
-                onDragOver={handleDragOver}
-                onDragEnter={(e) => handleDragEnter(e, setIsDraggingAudio)}
-                onDragLeave={(e) => handleDragLeave(e, setIsDraggingAudio)}
-                onDrop={(e) => handleDrop(e, true, setIsDraggingAudio)}
+                className={`relative overflow-hidden group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingAudio ? 'border-solid border-[#7c2d12] bg-[#7c2d12]/10 scale-[1.03] ring-4 ring-[#7c2d12]/10 shadow-2xl' : 'border-dashed border-[#e6d5b8] bg-[#fffcf5]'}`}
+                onDragEnter={() => setIsDraggingAudio(true)}
               >
-                <div className={`flex justify-between items-center ${isDraggingAudio ? 'pointer-events-none opacity-50' : ''}`}>
+                {/* 透明拖放接收層 */}
+                {isDraggingAudio && (
+                  <div 
+                    className="absolute inset-0 z-50 bg-[#7c2d12]/5 flex items-center justify-center"
+                    onDragOver={preventDefaults}
+                    onDragLeave={() => setIsDraggingAudio(false)}
+                    onDrop={(e) => handleDrop(e, true, setIsDraggingAudio)}
+                  >
+                    <div className="bg-[#7c2d12] text-white px-8 py-4 rounded-full font-bold shadow-2xl animate-bounce">
+                      <i className="fa-solid fa-music mr-2"></i> 放開滑鼠加入音檔
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">待轉錄音檔 ({audioFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">放開滑鼠即可加入</span>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">支援 MP3, WAV, M4A...</span>
                 </div>
-                <div className={`flex flex-wrap gap-2 ${isDraggingAudio ? 'pointer-events-none' : ''}`}>
+                <div className="flex flex-wrap gap-2">
                   {audioFiles.map((f, i) => (
                     <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in shadow-sm">
                       <span className="max-w-[150px] truncate">{f.name}</span>
                       <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-300"><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#9a3412] flex items-center gap-2 shadow-md transition-colors">
+                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#9a3412] flex items-center gap-2 shadow-md transition-all active:scale-90">
                     <input type="file" className="hidden" accept="audio/*" multiple onChange={e => e.target.files && processFiles(e.target.files, true)} />
                     <i className="fa-solid fa-plus"></i> 選取檔案
                   </label>
                 </div>
-                {isDraggingAudio && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="bg-[#7c2d12] text-white px-6 py-3 rounded-full font-bold shadow-xl animate-bounce">
-                      <i className="fa-solid fa-cloud-arrow-up mr-2"></i> 放到這裡加入音檔
+              </div>
+
+              {/* 輔助資料區塊 - 全新透明遮罩方案 */}
+              <div 
+                className={`relative overflow-hidden group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingRef ? 'border-solid border-[#9a3412] bg-[#9a3412]/10 scale-[1.03] ring-4 ring-[#9a3412]/10 shadow-2xl' : 'border-dashed border-[#e6d5b8] bg-[#fdfaf3]'}`}
+                onDragEnter={() => setIsDraggingRef(true)}
+              >
+                {/* 透明拖放接收層 */}
+                {isDraggingRef && (
+                  <div 
+                    className="absolute inset-0 z-50 bg-[#9a3412]/5 flex items-center justify-center"
+                    onDragOver={preventDefaults}
+                    onDragLeave={() => setIsDraggingRef(false)}
+                    onDrop={(e) => handleDrop(e, false, setIsDraggingRef)}
+                  >
+                    <div className="bg-[#9a3412] text-white px-8 py-4 rounded-full font-bold shadow-2xl animate-bounce">
+                      <i className="fa-solid fa-file-import mr-2"></i> 放開滑鼠加入參考資料
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* 輔助資料區塊 - 強化拖放 */}
-              <div 
-                className={`relative group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingRef ? 'border-solid border-[#9a3412] bg-[#9a3412]/5 scale-[1.02] shadow-inner' : 'border-dashed border-[#e6d5b8] bg-[#fdfaf3]'}`}
-                onDragOver={handleDragOver}
-                onDragEnter={(e) => handleDragEnter(e, setIsDraggingRef)}
-                onDragLeave={(e) => handleDragLeave(e, setIsDraggingRef)}
-                onDrop={(e) => handleDrop(e, false, setIsDraggingRef)}
-              >
-                <div className={`flex justify-between items-center ${isDraggingRef ? 'pointer-events-none opacity-50' : ''}`}>
+                <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助資料 ({referenceFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">支援多種文件格式</span>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">PDF, TXT, 圖片皆可</span>
                 </div>
-                <div className={`flex flex-wrap gap-2 ${isDraggingRef ? 'pointer-events-none' : ''}`}>
+                <div className="flex flex-wrap gap-2">
                   {referenceFiles.map((f, i) => (
                     <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-[#d4bd94] shadow-sm animate-fade-in">
                       <span className="max-w-[150px] truncate">{f.name}</span>
                       <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-700"><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-[#fffcf5] transition-colors shadow-sm">
+                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-[#fffcf5] transition-all shadow-sm active:scale-90">
                     <input type="file" className="hidden" accept="image/*,.pdf,.txt,.docx" multiple onChange={e => e.target.files && processFiles(e.target.files, false)} />
                     <i className="fa-solid fa-paperclip"></i> 上傳資料
                   </label>
                 </div>
-                {isDraggingRef && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="bg-[#9a3412] text-white px-6 py-3 rounded-full font-bold shadow-xl animate-bounce">
-                      <i className="fa-solid fa-file-import mr-2"></i> 放到這裡加入參考文件
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -333,12 +318,12 @@ const App: React.FC = () => {
                 onClick={handleStartTranscription} 
                 disabled={audioFiles.length === 0 || status === AppStatus.PROCESSING} 
                 className={`w-full py-6 rounded-2xl font-bold text-xl shadow-xl transition-all flex items-center justify-center gap-4 active:scale-95
-                  ${audioFiles.length === 0 ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-[#7c2d12] text-[#fffcf5] hover:bg-[#5d1a04]'}`}
+                  ${audioFiles.length === 0 ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-[#7c2d12] text-[#fffcf5] hover:bg-[#5d1a04] hover:shadow-[#7c2d12]/30'}`}
               >
                 {status === AppStatus.PROCESSING ? <i className="fa-solid fa-dharmachakra fa-spin text-2xl"></i> : <i className="fa-solid fa-scroll text-2xl"></i>}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center italic px-4">拖放功能已強化。若無法使用，請確認檔案格式是否正確。</p>
+              <p className="text-[10px] text-stone-400 text-center italic px-4">拖放功能已修復：使用遮罩層接收。若仍失效請嘗試縮小視窗再拖入。</p>
             </div>
           </div>
         </section>
