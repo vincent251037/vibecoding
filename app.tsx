@@ -94,10 +94,32 @@ const App: React.FC = () => {
     }
   };
 
-  // 拖放處理邏輯
+  // 增強型拖放處理
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragEnter = (e: React.DragEvent, setDragging: (v: boolean) => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent, setDragging: (v: boolean) => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 檢查是否真的離開了容器而不是進入了子元素
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (
+      e.clientX < rect.left ||
+      e.clientX >= rect.right ||
+      e.clientY < rect.top ||
+      e.clientY >= rect.bottom
+    ) {
+      setDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent, isAudio: boolean, setDragging: (v: boolean) => void) => {
@@ -225,56 +247,70 @@ const App: React.FC = () => {
                 <input value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} placeholder="輸入課程紀錄標題..." className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none text-lg font-medium" />
               </div>
 
-              {/* 音檔上傳區塊（修復拖放） */}
+              {/* 音檔上傳區塊 - 強化拖放 */}
               <div 
-                className={`space-y-3 p-6 rounded-xl border-2 border-dashed transition-all ${isDraggingAudio ? 'border-[#7c2d12] bg-[#7c2d12]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fffcf5]'}`}
+                className={`relative group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingAudio ? 'border-solid border-[#7c2d12] bg-[#7c2d12]/5 scale-[1.02] shadow-inner' : 'border-dashed border-[#e6d5b8] bg-[#fffcf5]'}`}
                 onDragOver={handleDragOver}
-                onDragEnter={() => setIsDraggingAudio(true)}
-                onDragLeave={() => setIsDraggingAudio(false)}
+                onDragEnter={(e) => handleDragEnter(e, setIsDraggingAudio)}
+                onDragLeave={(e) => handleDragLeave(e, setIsDraggingAudio)}
                 onDrop={(e) => handleDrop(e, true, setIsDraggingAudio)}
               >
-                <div className="flex justify-between items-center">
+                <div className={`flex justify-between items-center ${isDraggingAudio ? 'pointer-events-none opacity-50' : ''}`}>
                   <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">待轉錄音檔 ({audioFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">可直接將音檔拖入此處</span>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">放開滑鼠即可加入</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className={`flex flex-wrap gap-2 ${isDraggingAudio ? 'pointer-events-none' : ''}`}>
                   {audioFiles.map((f, i) => (
-                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
+                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in shadow-sm">
                       <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))}><i className="fa-solid fa-circle-xmark"></i></button>
+                      <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-300"><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#9a3412] flex items-center gap-2 shadow-md">
+                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#9a3412] flex items-center gap-2 shadow-md transition-colors">
                     <input type="file" className="hidden" accept="audio/*" multiple onChange={e => e.target.files && processFiles(e.target.files, true)} />
                     <i className="fa-solid fa-plus"></i> 選取檔案
                   </label>
                 </div>
+                {isDraggingAudio && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="bg-[#7c2d12] text-white px-6 py-3 rounded-full font-bold shadow-xl animate-bounce">
+                      <i className="fa-solid fa-cloud-arrow-up mr-2"></i> 放到這裡加入音檔
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 輔助資料區塊（修復拖放） */}
+              {/* 輔助資料區塊 - 強化拖放 */}
               <div 
-                className={`space-y-3 p-6 rounded-xl border-2 border-dashed transition-all ${isDraggingRef ? 'border-[#9a3412] bg-[#9a3412]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fdfaf3]'}`}
+                className={`relative group space-y-3 p-6 rounded-xl border-2 transition-all duration-300 ${isDraggingRef ? 'border-solid border-[#9a3412] bg-[#9a3412]/5 scale-[1.02] shadow-inner' : 'border-dashed border-[#e6d5b8] bg-[#fdfaf3]'}`}
                 onDragOver={handleDragOver}
-                onDragEnter={() => setIsDraggingRef(true)}
-                onDragLeave={() => setIsDraggingRef(false)}
+                onDragEnter={(e) => handleDragEnter(e, setIsDraggingRef)}
+                onDragLeave={(e) => handleDragLeave(e, setIsDraggingRef)}
                 onDrop={(e) => handleDrop(e, false, setIsDraggingRef)}
               >
-                <div className="flex justify-between items-center">
+                <div className={`flex justify-between items-center ${isDraggingRef ? 'pointer-events-none opacity-50' : ''}`}>
                   <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助資料 ({referenceFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">可直接將文件拖入此處</span>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">支援多種文件格式</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className={`flex flex-wrap gap-2 ${isDraggingRef ? 'pointer-events-none' : ''}`}>
                   {referenceFiles.map((f, i) => (
-                    <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-[#d4bd94]">
+                    <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-[#d4bd94] shadow-sm animate-fade-in">
                       <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><i className="fa-solid fa-circle-xmark"></i></button>
+                      <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-700"><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-[#fffcf5] transition-colors shadow-sm">
                     <input type="file" className="hidden" accept="image/*,.pdf,.txt,.docx" multiple onChange={e => e.target.files && processFiles(e.target.files, false)} />
                     <i className="fa-solid fa-paperclip"></i> 上傳資料
                   </label>
                 </div>
+                {isDraggingRef && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="bg-[#9a3412] text-white px-6 py-3 rounded-full font-bold shadow-xl animate-bounce">
+                      <i className="fa-solid fa-file-import mr-2"></i> 放到這裡加入參考文件
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -302,7 +338,7 @@ const App: React.FC = () => {
                 {status === AppStatus.PROCESSING ? <i className="fa-solid fa-dharmachakra fa-spin text-2xl"></i> : <i className="fa-solid fa-scroll text-2xl"></i>}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center italic px-4">Flash 高速引擎已啟動。支援直接拖放檔案至虛線區域。</p>
+              <p className="text-[10px] text-stone-400 text-center italic px-4">拖放功能已強化。若無法使用，請確認檔案格式是否正確。</p>
             </div>
           </div>
         </section>
@@ -313,7 +349,7 @@ const App: React.FC = () => {
               <div 
                 key={doc.id} 
                 onClick={() => { setActiveResult(doc); setViewMode('transcript'); }} 
-                className={`min-w-[220px] p-5 rounded-xl border-2 cursor-pointer transition-all ${activeResult?.id === doc.id ? 'border-[#7c2d12] bg-[#fffcf5] shadow-lg' : 'border-[#e6d5b8] bg-white'}`}
+                className={`min-w-[220px] p-5 rounded-xl border-2 cursor-pointer transition-all ${activeResult?.id === doc.id ? 'border-[#7c2d12] bg-[#fffcf5] shadow-lg scale-105' : 'border-[#e6d5b8] bg-white hover:border-[#7c2d12]/30'}`}
               >
                 <div className="text-[10px] text-[#9a3412] font-black uppercase tracking-widest">{doc.courseName}</div>
                 <div className="font-bold text-base line-clamp-1">{doc.title}</div>
@@ -324,7 +360,7 @@ const App: React.FC = () => {
         )}
 
         {activeResult && (
-          <div className="bg-white rounded-2xl shadow-2xl border border-[#e6d5b8] overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#e6d5b8] overflow-hidden animate-fade-in">
             <div className="bg-[#7c2d12] text-white p-7 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex items-center gap-5">
                 <i className="fa-solid fa-book-quran text-3xl opacity-50"></i>
@@ -334,12 +370,12 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3 bg-black/20 p-1.5 rounded-2xl">
-                <button onClick={() => setViewMode('transcript')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'transcript' ? 'bg-[#fffcf5] text-[#7c2d12]' : 'text-white'}`}>逐字稿</button>
-                <button onClick={handleGenerateNotes} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'latest_notes' ? 'bg-[#fffcf5] text-[#7c2d12]' : 'bg-white/10 text-white'}`}>
+                <button onClick={() => setViewMode('transcript')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'transcript' ? 'bg-[#fffcf5] text-[#7c2d12]' : 'text-white hover:bg-white/10'}`}>逐字稿</button>
+                <button onClick={handleGenerateNotes} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'latest_notes' ? 'bg-[#fffcf5] text-[#7c2d12]' : 'bg-white/10 text-white hover:bg-white/20'}`}>
                   {isGeneratingNotes ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
                   {activeResult.notesLatest ? `筆記 v${activeResult.latestVersion}` : '生成筆記'}
                 </button>
-                <button onClick={downloadDoc} className="px-4 py-2.5 rounded-xl bg-red-900 text-white"><i className="fa-solid fa-file-arrow-down"></i></button>
+                <button onClick={downloadDoc} className="px-4 py-2.5 rounded-xl bg-red-900 text-white hover:bg-red-800 transition-colors"><i className="fa-solid fa-file-arrow-down"></i></button>
               </div>
             </div>
             <div className="p-12 h-[600px] overflow-y-auto whitespace-pre-wrap text-xl font-serif bg-[#fdfaf3] text-[#333] custom-scrollbar leading-relaxed">
@@ -350,8 +386,8 @@ const App: React.FC = () => {
       </main>
 
       <style>{`
-        @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
         .animate-spin-slow { animation: spin 12s linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
