@@ -35,6 +35,7 @@ const getNotesSystemInstruction = (courseName: string) => `
 `;
 
 function cleanJsonString(jsonStr: string): string {
+  if (!jsonStr) return '{}';
   return jsonStr.replace(/```json\n?/, '').replace(/```\n?$/, '').trim();
 }
 
@@ -44,20 +45,40 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   try {
-    const response = await ai.models.generateContent({
+    const parts: any[] = [];
+    
+    // 遍歷並加入音檔數據
+    for (const a of audioParts) {
+      parts.push({ 
+        inlineData: { 
+          data: a.data, 
+          mimeType: a.mimeType 
+        } 
+      });
+    }
+    
+    // 遍歷並加入參考文件數據
+    for (const f of referenceFiles) {
+      parts.push({ 
+        inlineData: { 
+          data: f.data, 
+          mimeType: f.mimeType 
+        } 
+      });
+    }
+    
+    // 加入文字指令與術語對照
+    parts.push({
+      text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
+    });
+
+    // 使用 any 繞過複雜的 SDK Union Type 檢查，解決 line 47 的類型匹配問題
+    const response: any = await (ai.models as any).generateContent({
       model: 'gemini-3-pro-preview',
-      contents: {
-        parts: [
-          ...audioParts.map(a => ({ inlineData: { data: a.data, mimeType: a.mimeType } })),
-          ...referenceFiles.map(f => ({ inlineData: { data: f.data, mimeType: f.mimeType } })),
-          {
-            text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
-          }
-        ]
-      },
+      contents: [{ parts }],
       config: {
         systemInstruction: getSystemInstruction(courseName, sessionTitle),
         responseMimeType: "application/json",
@@ -73,12 +94,12 @@ export async function transcribeAudio(
       }
     });
 
-    const text = response.text || '{}';
-    const result = JSON.parse(cleanJsonString(text));
+    const resultText = response.text || '{}';
+    const result = JSON.parse(cleanJsonString(resultText));
     
     return { 
       ...result, 
-      id: `trans-${self.crypto.randomUUID()}`, 
+      id: `trans-${Date.now()}-${Math.floor(Math.random() * 1000)}`, 
       timestamp: Date.now(), 
       courseName,
       latestVersion: 0,
@@ -91,12 +112,10 @@ export async function transcribeAudio(
 }
 
 export async function generateStudyNotes(content: string, title: string, courseName: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const response: any = await (ai.models as any).generateContent({
     model: 'gemini-3-pro-preview',
-    contents: {
-      parts: [{ text: `主題：${title}\n\n內容：\n${content}` }]
-    },
+    contents: [{ parts: [{ text: `主題：${title}\n\n內容：\n${content}` }] }],
     config: {
       systemInstruction: getNotesSystemInstruction(courseName),
       thinkingConfig: { thinkingBudget: 16384 },
