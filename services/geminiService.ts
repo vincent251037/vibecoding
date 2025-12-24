@@ -1,6 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptionResult } from "../types";
 
+// 宣告 process 結構以符合 TypeScript 編譯器要求
+declare const process: {
+  env: {
+    API_KEY?: string;
+    [key: string]: string | undefined;
+  };
+};
+
 const ERROR_CORRECTION_TABLE = `
 【學術術語修正對照表】
 - 上升緊繃 -> 上身緊繃 | 水路法會 -> 水陸法會
@@ -45,12 +53,13 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  // 直接從 process.env 獲取 API KEY，確保符合規範
+  const apiKey = process.env.API_KEY || '';
+  const ai = new GoogleGenAI({ apiKey });
   
   try {
     const parts: any[] = [];
     
-    // 遍歷並加入音檔數據
     for (const a of audioParts) {
       parts.push({ 
         inlineData: { 
@@ -60,7 +69,6 @@ export async function transcribeAudio(
       });
     }
     
-    // 遍歷並加入參考文件數據
     for (const f of referenceFiles) {
       parts.push({ 
         inlineData: { 
@@ -70,13 +78,11 @@ export async function transcribeAudio(
       });
     }
     
-    // 加入文字指令與術語對照
     parts.push({
       text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
     });
 
-    // 使用 any 繞過複雜的 SDK Union Type 檢查，解決 line 47 的類型匹配問題
-    const response: any = await (ai.models as any).generateContent({
+    const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: [{ parts }],
       config: {
@@ -112,8 +118,9 @@ export async function transcribeAudio(
 }
 
 export async function generateStudyNotes(content: string, title: string, courseName: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  const response: any = await (ai.models as any).generateContent({
+  const apiKey = process.env.API_KEY || '';
+  const ai = new GoogleGenAI({ apiKey });
+  const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: [{ parts: [{ text: `主題：${title}\n\n內容：\n${content}` }] }],
     config: {
