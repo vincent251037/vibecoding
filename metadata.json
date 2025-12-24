@@ -1,0 +1,7 @@
+{
+  "name": "印度佛教史音檔轉錄專家V02-02",
+  "description": "專業的佛教史課程錄音轉錄工具，針對學術名詞與歷史背景進行優化，提供精確的逐字稿服務。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
