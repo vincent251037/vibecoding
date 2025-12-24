@@ -5,11 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: '/vibecoding/', 
-  define: {
-    'process.env': {}
-  },
   build: {
     outDir: 'dist'
   }
 });
-

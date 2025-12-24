@@ -18,16 +18,10 @@ const DEFAULT_COURSES = [
   "初期大乘佛教的起源與開展"
 ];
 
-// Renamed interface to avoid collision with potential global AIStudio type
-interface AppAIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
+// Fix: Use any and optional to avoid conflicts with existing global declarations of aistudio
 declare global {
   interface Window {
-    // Removed readonly modifier to match global Window declaration and avoid "identical modifiers" error
-    aistudio: AppAIStudio;
+    aistudio?: any;
   }
 }
 
@@ -51,7 +45,6 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
 
-  // 拖放視覺狀態
   const [isDraggingAudio, setIsDraggingAudio] = useState(false);
   const [isDraggingRef, setIsDraggingRef] = useState(false);
 
@@ -59,7 +52,11 @@ const App: React.FC = () => {
     localStorage.setItem('user_courses', JSON.stringify(courses));
   }, [courses]);
 
+  // 1. 隨課程切換動態更新網頁標題與預設主題
   useEffect(() => {
+    document.title = `${selectedCourse} 轉錄專家`;
+    
+    // 如果沒有音檔時，主題隨課程連動
     if (audioFiles.length === 0) {
       const date = new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
       setSessionTitle(`${date} ${selectedCourse} 課程紀錄`);
@@ -83,6 +80,13 @@ const App: React.FC = () => {
 
   const processFiles = async (files: FileList | File[], isAudio: boolean) => {
     const filesArray = Array.from(files);
+    
+    // 2. 當有錄音檔上傳時，自動將「課程主題」更新為第一個錄音檔的檔名
+    if (isAudio && filesArray.length > 0) {
+      const fileNameWithoutExt = filesArray[0].name.replace(/\.[^/.]+$/, "");
+      setSessionTitle(fileNameWithoutExt);
+    }
+
     for (const file of filesArray) {
       const reader = new FileReader();
       reader.onload = () => {
@@ -102,7 +106,6 @@ const App: React.FC = () => {
     }
   };
 
-  // 拖放核心處理：必須在 DragOver 調用 preventDefault，Drop 才會生效
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -121,11 +124,10 @@ const App: React.FC = () => {
     if (audioFiles.length === 0) return;
 
     try {
-      // 步驟 1: 檢查 API Key
-      const hasKey = await window.aistudio.hasSelectedApiKey();
+      // Fix: Use optional chaining for aistudio calls
+      const hasKey = await window.aistudio?.hasSelectedApiKey();
       if (!hasKey) {
-        await window.aistudio.openSelectKey();
-        // 指令：呼叫 openSelectKey 後直接視為成功繼續
+        await window.aistudio?.openSelectKey();
       }
 
       setStatus(AppStatus.PROCESSING);
@@ -148,8 +150,9 @@ const App: React.FC = () => {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
       if (e.message?.includes("Requested entity was not found")) {
-        alert("API Key 無效或找不到對應專案，請重新選擇。");
-        await window.aistudio.openSelectKey();
+        alert("API Key 效期已過或無效，請重新選擇。");
+        // Fix: Use optional chaining for aistudio calls
+        await window.aistudio?.openSelectKey();
       } else {
         alert(`轉錄失敗: ${e.message || "未知錯誤"}`);
       }
@@ -193,41 +196,41 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#fffcf5] text-[#2d2d2d] p-6 font-serif">
       <header className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-[#e6d5b8] pb-6 gap-4">
         <div className="animate-fade-in">
+          {/* Header 標題隨選取課程動態改變 */}
           <h1 className="text-3xl font-bold text-[#7c2d12] flex items-center gap-3">
-            <i className="fa-solid fa-dharmachakra animate-spin-slow"></i> {selectedCourse}轉錄專家
+            <i className={`fa-solid ${selectedCourse.includes("佛") ? 'fa-dharmachakra' : 'fa-brain'} animate-spin-slow`}></i> {selectedCourse}轉錄專家
           </h1>
           <p className="text-[#9a3412] mt-1 italic flex items-center gap-2">
             <i className="fa-solid fa-feather-pointed"></i> 學術校對與多版本筆記管理系統
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-[#e6d5b8]">
-            <span className="text-xs font-bold text-[#7c2d12] ml-2">切換課程</span>
+            <span className="text-xs font-bold text-[#7c2d12] ml-2">目前課程：</span>
             <select 
               value={selectedCourse} 
               onChange={(e) => setSelectedCourse(e.target.value)} 
-              className="bg-[#fdfaf3] border border-[#e6d5b8] rounded-lg px-3 py-1.5 outline-none focus:border-[#7c2d12] text-sm"
+              className="bg-[#fdfaf3] border border-[#e6d5b8] rounded-lg px-4 py-2 outline-none focus:border-[#7c2d12] text-sm font-medium transition-colors"
             >
               {courses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <button 
               onClick={() => setIsManageOpen(true)}
-              className="w-8 h-8 rounded-full bg-[#7c2d12] text-white flex items-center justify-center hover:bg-[#9a3412] transition-colors shadow-sm"
-              title="管理課程"
+              className="w-9 h-9 rounded-full bg-[#7c2d12] text-white flex items-center justify-center hover:bg-[#9a3412] transition-all shadow-md active:scale-90"
+              title="管理課程清單"
             >
-              <i className="fa-solid fa-plus text-xs"></i>
+              <i className="fa-solid fa-list-ul text-xs"></i>
             </button>
           </div>
         </div>
       </header>
 
-      {/* 課程管理彈窗 */}
       {isManageOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setIsManageOpen(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-[#e6d5b8] animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-[#7c2d12] text-xl">管理課程清單</h3>
+              <h3 className="font-bold text-[#7c2d12] text-xl">課程清單管理</h3>
               <button onClick={() => setIsManageOpen(false)}><i className="fa-solid fa-xmark text-xl text-stone-400"></i></button>
             </div>
             <div className="flex gap-2 mb-6">
@@ -238,13 +241,13 @@ const App: React.FC = () => {
                 className="flex-1 p-3 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none"
                 onKeyDown={e => e.key === 'Enter' && addCourse()}
               />
-              <button onClick={addCourse} className="bg-[#7c2d12] text-white px-4 rounded-xl font-bold">新增</button>
+              <button onClick={addCourse} className="bg-[#7c2d12] text-white px-4 rounded-xl font-bold hover:bg-[#9a3412] transition-colors">新增</button>
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
               {courses.map(c => (
-                <div key={c} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
+                <div key={c} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100 hover:bg-stone-100 transition-colors">
                   <span className="font-medium">{c}</span>
-                  <button onClick={() => removeCourse(c)} className="text-stone-300 hover:text-red-500 transition-colors">
+                  <button onClick={() => removeCourse(c)} className="text-stone-300 hover:text-red-500 transition-colors px-2">
                     <i className="fa-solid fa-trash-can"></i>
                   </button>
                 </div>
@@ -259,16 +262,20 @@ const App: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-10">
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-[#7c2d12] mb-2 uppercase tracking-widest">講座紀錄標題</label>
-                <input 
-                  value={sessionTitle} 
-                  onChange={e => setSessionTitle(e.target.value)} 
-                  placeholder="例如：05/20 部派佛教的起源" 
-                  className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none focus:ring-2 ring-[#7c2d12]/20 transition-all" 
-                />
+                <label className="block text-xs font-bold text-[#7c2d12] mb-2 uppercase tracking-widest">課程主題</label>
+                <div className="relative">
+                  <input 
+                    value={sessionTitle} 
+                    onChange={e => setSessionTitle(e.target.value)} 
+                    placeholder="輸入課程紀錄標題..." 
+                    className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none focus:ring-2 ring-[#7c2d12]/20 transition-all text-lg font-medium" 
+                  />
+                  {audioFiles.length > 0 && (
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] bg-[#7c2d12]/10 text-[#7c2d12] px-2 py-1 rounded font-bold animate-pulse">檔名連動中</span>
+                  )}
+                </div>
               </div>
 
-              {/* 錄音檔拖放區 */}
               <div 
                 className={`group space-y-3 p-6 rounded-xl border-2 border-dashed transition-all relative ${isDraggingAudio ? 'border-[#7c2d12] bg-[#7c2d12]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fffcf5]'}`}
                 onDragOver={handleDragOver}
@@ -278,26 +285,25 @@ const App: React.FC = () => {
               >
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">待轉錄音檔 ({audioFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">將音檔拖放到此</span>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">支援拖放音檔至此</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {audioFiles.map((f, i) => (
-                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
+                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in shadow-sm">
                       <i className="fa-solid fa-microphone-lines"></i>
                       <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-white/50 hover:text-white">
+                      <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-white/50 hover:text-white transition-colors">
                         <i className="fa-solid fa-circle-xmark"></i>
                       </button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-[#9a3412] transition-all flex items-center gap-2 shadow-md">
+                  <label className="cursor-pointer bg-[#7c2d12] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#9a3412] transition-all flex items-center gap-2 shadow-md active:scale-95">
                     <input type="file" className="hidden" accept="audio/*" multiple onChange={e => e.target.files && processFiles(e.target.files, true)} />
                     <i className="fa-solid fa-plus"></i> 選取檔案
                   </label>
                 </div>
               </div>
 
-              {/* 輔助文件拖放區 */}
               <div 
                 className={`group space-y-3 p-6 rounded-xl border-2 border-dashed transition-all relative ${isDraggingRef ? 'border-[#9a3412] bg-[#9a3412]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fdfaf3]'}`}
                 onDragOver={handleDragOver}
@@ -306,20 +312,20 @@ const App: React.FC = () => {
                 onDrop={(e) => handleDrop(e, false, setIsDraggingRef)}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助文件 ({referenceFiles.length})</label>
-                  <span className="text-[10px] text-[#9a3412]/50 italic">支援 PDF, Word, 圖片</span>
+                  <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助資料 ({referenceFiles.length})</label>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">校對參考用文件</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {referenceFiles.map((f, i) => (
                     <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-[#d4bd94] animate-fade-in">
                       <i className="fa-solid fa-file-contract"></i>
                       <span className="max-w-[150px] truncate">{f.name}</span>
-                      <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-[#7c2d12]/40 hover:text-red-600">
+                      <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-[#7c2d12]/40 hover:text-red-600 transition-colors">
                         <i className="fa-solid fa-circle-xmark"></i>
                       </button>
                     </div>
                   ))}
-                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-1.5 rounded-lg text-xs font-bold hover:border-[#7c2d12] transition-all flex items-center gap-2 shadow-sm">
+                  <label className="cursor-pointer bg-white text-[#7c2d12] border border-[#e6d5b8] px-4 py-2 rounded-lg text-xs font-bold hover:border-[#7c2d12] transition-all flex items-center gap-2 shadow-sm active:scale-95">
                     <input type="file" className="hidden" accept="image/*,.pdf,.txt,.docx" multiple onChange={e => e.target.files && processFiles(e.target.files, false)} />
                     <i className="fa-solid fa-paperclip"></i> 上傳資料
                   </label>

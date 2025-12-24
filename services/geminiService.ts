@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptionResult } from "../types";
 
-// 宣告 process 以解決 TypeScript 編譯錯誤，確保能讀取環境變數 API_KEY
+// 宣告 process 變數以解決 TypeScript 編譯錯誤
 declare var process: {
   env: {
     API_KEY: string;
@@ -49,7 +49,7 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  // 每次調用都創建新實例以確保獲取最新 API Key
+  // 使用 process.env.API_KEY 初始化 GoogleGenAI 實例
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const parts: any[] = [];
@@ -66,11 +66,10 @@ export async function transcribeAudio(
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: [{ parts }],
+    contents: { parts },
     config: {
       systemInstruction: getSystemInstruction(courseName, sessionTitle),
       responseMimeType: "application/json",
-      // Gemini 3 Pro 支持思考預算，設置為推薦值
       thinkingConfig: { thinkingBudget: 32768 },
       responseSchema: {
         type: Type.OBJECT,
@@ -83,7 +82,7 @@ export async function transcribeAudio(
     }
   });
 
-  // 直接讀取 .text 屬性，不使用方法調用
+  // 直接讀取 .text 屬性
   const result = JSON.parse(cleanJsonString(response.text));
   
   return { 
@@ -100,9 +99,9 @@ export async function generateStudyNotes(content: string, title: string, courseN
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: [{ parts: [{ text: `主題：${title}\n\n內容：\n${content}` }] }],
+    contents: `主題：${title}\n\n內容：\n${content}`,
     config: {
-      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋。`,
+      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋學術。`,
       thinkingConfig: { thinkingBudget: 16384 },
     }
   });
