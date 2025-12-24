@@ -55,6 +55,21 @@ const App: React.FC = () => {
     localStorage.setItem('user_courses', JSON.stringify(courses));
   }, [courses]);
 
+  // Initial key check on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      const aistudio = getAiStudio();
+      if (aistudio) {
+        const hasKey = await aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          // As per instruction: proceed to app, but inform user they'll need a key
+          console.log("No API Key selected yet.");
+        }
+      }
+    };
+    checkKey();
+  }, []);
+
   // 1. 隨課程切換動態更新網頁標題與預設主題
   useEffect(() => {
     document.title = `${selectedCourse} 轉錄專家`;
@@ -140,13 +155,16 @@ const App: React.FC = () => {
     }
 
     try {
+      // Step 1: Force key selection if process.env.API_KEY is missing
       const hasKey = await aistudio.hasSelectedApiKey();
+      const currentKey = (process as any).env?.API_KEY;
       
-      // Mandatory check: if no key selected, open dialog
-      if (!hasKey) {
-        alert("使用 Gemini 3 Pro 進行學術轉錄需先授權 API 金鑰。正在開啟視窗...");
+      if (!hasKey || !currentKey) {
+        alert("使用 Gemini 3 Pro 進行學術轉錄需先「授權 API 金鑰」。授權完成後，請再次點擊「啟動學術轉錄」。");
         await aistudio.openSelectKey();
-        // Following instruction: assume success after trigger and proceed.
+        // Return here. Do NOT proceed to transcribeAudio because the key 
+        // won't be in process.env.API_KEY in the current execution frame.
+        return;
       }
 
       setStatus(AppStatus.PROCESSING);
@@ -169,11 +187,11 @@ const App: React.FC = () => {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
       
-      // Specific handling for SDK error "API Key must be set" or "Requested entity not found"
+      // Handle the specific error string from the Gemini SDK
       if (e.message?.includes("API Key must be set") || 
           e.message?.includes("Requested entity was not found") || 
           e.message?.includes("API Key is missing")) {
-        alert("API 金鑰驗證失敗或尚未設定，請重新選擇有效的金鑰。");
+        alert("API 金鑰驗證失敗。請重新點擊「授權金鑰」並選取有效的付費專案金鑰。");
         await aistudio.openSelectKey();
       } else {
         alert(`轉錄失敗: ${e.message || "未知錯誤"}`);
@@ -199,9 +217,11 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Notes error:", e);
       if (e.message?.includes("API Key must be set") || e.message?.includes("Requested entity was not found")) {
-        alert("金鑰授權已過期，請點擊「授權金鑰」重新選擇。");
+        alert("金鑰授權驗證失敗，請點擊上方「授權金鑰」重新選擇。");
         const aistudio = getAiStudio();
         if (aistudio) await aistudio.openSelectKey();
+      } else {
+        alert(`生成筆記失敗: ${e.message}`);
       }
     } finally {
       setIsGeneratingNotes(false);
@@ -393,7 +413,7 @@ const App: React.FC = () => {
                 )}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center px-6 italic">使用 Gemini 3 Pro 模型，需授權 API 金鑰以執行深度語義校正。</p>
+              <p className="text-[10px] text-stone-400 text-center px-6 italic">使用 Gemini 3 Pro 模型。第一次啟動需點擊「授權金鑰」以執行深度語義校正。</p>
             </div>
           </div>
         </section>
