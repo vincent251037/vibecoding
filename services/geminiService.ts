@@ -1,11 +1,11 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptionResult } from "../types";
 
-// 宣告 process 結構以符合 TypeScript 編譯器要求
-declare const process: {
+// 宣告 process 以解決 TypeScript 編譯錯誤，確保能讀取環境變數 API_KEY
+declare var process: {
   env: {
-    API_KEY?: string;
-    [key: string]: string | undefined;
+    API_KEY: string;
   };
 };
 
@@ -13,12 +13,13 @@ const ERROR_CORRECTION_TABLE = `
 【學術術語修正對照表】
 - 上升緊繃 -> 上身緊繃 | 水路法會 -> 水陸法會
 - 海英三昧 -> 海印三昧 | 產眾 -> 禪眾
-- 阿賴也是 -> 阿賴耶識 | 氣理 -> 契理
+- 阿賴還是 -> 阿賴耶識 | 氣理 -> 契理
 - 法稱提出形象視為有垢論 -> 法稱出形象虛偽有垢論
 - 骯髒氣承認形象是為有垢論 -> 寶藏寂承認形象虛偽有垢論
 - 中部著重在「中觀瑜伽」中和學派 -> 寂護著重在「中觀瑜伽」綜合學派
 - 無形象知識論 -> 無形相知識論 | 新意識 -> 心意識
 - 末那是思量名 -> 末那是思量義
+- 釋迦摩尼 -> 釋迦牟尼 | 維摩詰 -> 維摩詰
 `;
 
 const getSystemInstruction = (courseName: string, sessionTitle: string) => `
@@ -26,9 +27,9 @@ const getSystemInstruction = (courseName: string, sessionTitle: string) => `
 
 核心任務：
 1. **精準轉錄**：將音檔轉化為文字，嚴禁濃縮。
-2. **術語校對**：結合上傳的參考文件，修正專有名詞。
+2. **術語校對**：結合上傳的參考文件，修正專有名詞（如梵文譯名、佛教術語）。
 3. **角色識別**：必須區分「老師：」與「學生 1：」、「學生 2：」等發言者。
-4. **格式**：重要術語以 **粗體** 標示。
+4. **格式**：重要術語或結論以 **粗體** 標示。
 
 請輸出 JSON 格式：
 {
@@ -37,12 +38,7 @@ const getSystemInstruction = (courseName: string, sessionTitle: string) => `
 }
 `;
 
-const getNotesSystemInstruction = (courseName: string) => `
-你是一位資深的學術研究員，請將「${courseName}」講座內容轉化為研究生級別的 Markdown 筆記。
-要求：嚴謹、專業、排版美觀，包含邏輯架構與學術反思。
-`;
-
-function cleanJsonString(jsonStr: string): string {
+function cleanJsonString(jsonStr: string | undefined): string {
   if (!jsonStr) return '{}';
   return jsonStr.replace(/```json\n?/, '').replace(/```\n?$/, '').trim();
 }
@@ -53,78 +49,60 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  // 直接從 process.env 獲取 API KEY，確保符合規範
-  const apiKey = process.env.API_KEY || '';
-  const ai = new GoogleGenAI({ apiKey });
+  // 每次調用都創建新實例以確保獲取最新 API Key
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  try {
-    const parts: any[] = [];
-    
-    for (const a of audioParts) {
-      parts.push({ 
-        inlineData: { 
-          data: a.data, 
-          mimeType: a.mimeType 
-        } 
-      });
-    }
-    
-    for (const f of referenceFiles) {
-      parts.push({ 
-        inlineData: { 
-          data: f.data, 
-          mimeType: f.mimeType 
-        } 
-      });
-    }
-    
-    parts.push({
-      text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
-    });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: [{ parts }],
-      config: {
-        systemInstruction: getSystemInstruction(courseName, sessionTitle),
-        responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 32768 },
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            content: { type: Type.STRING }
-          },
-          required: ["title", "content"]
-        }
-      }
-    });
-
-    const resultText = response.text || '{}';
-    const result = JSON.parse(cleanJsonString(resultText));
-    
-    return { 
-      ...result, 
-      id: `trans-${Date.now()}-${Math.floor(Math.random() * 1000)}`, 
-      timestamp: Date.now(), 
-      courseName,
-      latestVersion: 0,
-      previousVersion: 0
-    };
-  } catch (error) {
-    console.error("Transcription error:", error);
-    throw new Error("轉錄處理失敗。");
+  const parts: any[] = [];
+  for (const a of audioParts) {
+    parts.push({ inlineData: { data: a.data, mimeType: a.mimeType } });
   }
+  for (const f of referenceFiles) {
+    parts.push({ inlineData: { data: f.data, mimeType: f.mimeType } });
+  }
+  
+  parts.push({
+    text: `講座主題：${sessionTitle}。請參考專業對照表進行校正：${ERROR_CORRECTION_TABLE}`
+  });
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: [{ parts }],
+    config: {
+      systemInstruction: getSystemInstruction(courseName, sessionTitle),
+      responseMimeType: "application/json",
+      // Gemini 3 Pro 支持思考預算，設置為推薦值
+      thinkingConfig: { thinkingBudget: 32768 },
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          content: { type: Type.STRING }
+        },
+        required: ["title", "content"]
+      }
+    }
+  });
+
+  // 直接讀取 .text 屬性，不使用方法調用
+  const result = JSON.parse(cleanJsonString(response.text));
+  
+  return { 
+    ...result, 
+    id: `trans-${Date.now()}`, 
+    timestamp: Date.now(), 
+    courseName,
+    latestVersion: 1,
+    previousVersion: 0
+  };
 }
 
 export async function generateStudyNotes(content: string, title: string, courseName: string): Promise<string> {
-  const apiKey = process.env.API_KEY || '';
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: [{ parts: [{ text: `主題：${title}\n\n內容：\n${content}` }] }],
     config: {
-      systemInstruction: getNotesSystemInstruction(courseName),
+      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋。`,
       thinkingConfig: { thinkingBudget: 16384 },
     }
   });
