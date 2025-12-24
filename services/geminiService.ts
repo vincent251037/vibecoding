@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptionResult } from "../types";
 
-// 宣告 process 變數以解決 TypeScript 編譯錯誤
+// Explicitly declare process for browser environment safety
 declare var process: {
   env: {
     API_KEY: string;
@@ -49,8 +49,13 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  // 使用 process.env.API_KEY 初始化 GoogleGenAI 實例
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Always initialize right before use to capture latest process.env.API_KEY
+  const apiKey = (process as any).env?.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please authorize your key in the header.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const parts: any[] = [];
   for (const a of audioParts) {
@@ -82,7 +87,6 @@ export async function transcribeAudio(
     }
   });
 
-  // 直接讀取 .text 屬性
   const result = JSON.parse(cleanJsonString(response.text));
   
   return { 
@@ -96,12 +100,16 @@ export async function transcribeAudio(
 }
 
 export async function generateStudyNotes(content: string, title: string, courseName: string): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = (process as any).env?.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: `主題：${title}\n\n內容：\n${content}`,
     config: {
-      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋學術。`,
+      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋。`,
       thinkingConfig: { thinkingBudget: 16384 },
     }
   });

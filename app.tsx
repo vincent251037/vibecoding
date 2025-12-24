@@ -3,6 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { AppStatus, TranscriptionResult } from './types';
 import { transcribeAudio, generateStudyNotes } from './services/geminiService';
 
+// Declare process to satisfy TypeScript compiler for process.env.API_KEY
+declare var process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
 interface FileData {
   name: string;
   data: string;
@@ -18,12 +25,8 @@ const DEFAULT_COURSES = [
   "初期大乘佛教的起源與開展"
 ];
 
-// Fix: Use any and optional to avoid conflicts with existing global declarations of aistudio
-declare global {
-  interface Window {
-    aistudio?: any;
-  }
-}
+// Use a more robust way to handle window.aistudio to avoid TS errors
+const getAiStudio = () => (window as any).aistudio;
 
 const App: React.FC = () => {
   const [courses, setCourses] = useState<string[]>(() => {
@@ -120,14 +123,30 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSelectApiKey = async () => {
+    const aistudio = getAiStudio();
+    if (aistudio) {
+      await aistudio.openSelectKey();
+    }
+  };
+
   const handleStartTranscription = async () => {
     if (audioFiles.length === 0) return;
 
+    const aistudio = getAiStudio();
+    if (!aistudio) {
+      alert("此環境不支援 API 金鑰選擇。");
+      return;
+    }
+
     try {
-      // Fix: Use optional chaining for aistudio calls
-      const hasKey = await window.aistudio?.hasSelectedApiKey();
+      const hasKey = await aistudio.hasSelectedApiKey();
+      
+      // Mandatory check: if no key selected, open dialog
       if (!hasKey) {
-        await window.aistudio?.openSelectKey();
+        alert("使用 Gemini 3 Pro 進行學術轉錄需先授權 API 金鑰。正在開啟視窗...");
+        await aistudio.openSelectKey();
+        // Following instruction: assume success after trigger and proceed.
       }
 
       setStatus(AppStatus.PROCESSING);
@@ -149,10 +168,13 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
-      if (e.message?.includes("Requested entity was not found")) {
-        alert("API Key 效期已過或無效，請重新選擇。");
-        // Fix: Use optional chaining for aistudio calls
-        await window.aistudio?.openSelectKey();
+      
+      // Specific handling for SDK error "API Key must be set" or "Requested entity not found"
+      if (e.message?.includes("API Key must be set") || 
+          e.message?.includes("Requested entity was not found") || 
+          e.message?.includes("API Key is missing")) {
+        alert("API 金鑰驗證失敗或尚未設定，請重新選擇有效的金鑰。");
+        await aistudio.openSelectKey();
       } else {
         alert(`轉錄失敗: ${e.message || "未知錯誤"}`);
       }
@@ -174,8 +196,13 @@ const App: React.FC = () => {
       setActiveResult(updated);
       setLibrary(prev => prev.map(i => i.id === updated.id ? updated : i));
       setViewMode('latest_notes');
-    } catch (e) {
+    } catch (e: any) {
       console.error("Notes error:", e);
+      if (e.message?.includes("API Key must be set") || e.message?.includes("Requested entity was not found")) {
+        alert("金鑰授權已過期，請點擊「授權金鑰」重新選擇。");
+        const aistudio = getAiStudio();
+        if (aistudio) await aistudio.openSelectKey();
+      }
     } finally {
       setIsGeneratingNotes(false);
     }
@@ -196,7 +223,6 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#fffcf5] text-[#2d2d2d] p-6 font-serif">
       <header className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center mb-10 border-b-2 border-[#e6d5b8] pb-6 gap-4">
         <div className="animate-fade-in">
-          {/* Header 標題隨選取課程動態改變 */}
           <h1 className="text-3xl font-bold text-[#7c2d12] flex items-center gap-3">
             <i className={`fa-solid ${selectedCourse.includes("佛") ? 'fa-dharmachakra' : 'fa-brain'} animate-spin-slow`}></i> {selectedCourse}轉錄專家
           </h1>
@@ -205,20 +231,26 @@ const App: React.FC = () => {
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-[#e6d5b8]">
-            <span className="text-xs font-bold text-[#7c2d12] ml-2">目前課程：</span>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleSelectApiKey}
+            className="flex items-center gap-2 bg-[#d4a017] hover:bg-[#b8860b] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95"
+            title="選取付費專案 API 金鑰"
+          >
+            <i className="fa-solid fa-key"></i> 授權金鑰
+          </button>
+          
+          <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#e6d5b8]">
             <select 
               value={selectedCourse} 
               onChange={(e) => setSelectedCourse(e.target.value)} 
-              className="bg-[#fdfaf3] border border-[#e6d5b8] rounded-lg px-4 py-2 outline-none focus:border-[#7c2d12] text-sm font-medium transition-colors"
+              className="bg-transparent px-4 py-2 outline-none text-sm font-medium"
             >
               {courses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <button 
               onClick={() => setIsManageOpen(true)}
-              className="w-9 h-9 rounded-full bg-[#7c2d12] text-white flex items-center justify-center hover:bg-[#9a3412] transition-all shadow-md active:scale-90"
-              title="管理課程清單"
+              className="w-8 h-8 rounded-lg bg-[#7c2d12] text-white flex items-center justify-center hover:bg-[#9a3412] transition-all"
             >
               <i className="fa-solid fa-list-ul text-xs"></i>
             </button>
@@ -361,7 +393,7 @@ const App: React.FC = () => {
                 )}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center px-6 italic">使用 Gemini 3 Pro 模型，結合多模態分析與學術專有名詞校正，確保轉錄精準度。</p>
+              <p className="text-[10px] text-stone-400 text-center px-6 italic">使用 Gemini 3 Pro 模型，需授權 API 金鑰以執行深度語義校正。</p>
             </div>
           </div>
         </section>
