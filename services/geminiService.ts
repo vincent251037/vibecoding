@@ -47,13 +47,20 @@ export async function transcribeAudio(
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   try {
-    const parts: any[] = [
-      ...audioParts.map(a => ({ inlineData: { data: a.data, mimeType: a.mimeType } })),
-      ...referenceFiles.map(f => ({ inlineData: { data: f.data, mimeType: f.mimeType } })),
-      {
-        text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
-      }
-    ];
+    // 顯式定義 parts 類型並使用 push 避免 tsc 合併錯誤
+    const parts: any[] = [];
+    
+    for (const audio of audioParts) {
+      parts.push({ inlineData: { data: audio.data, mimeType: audio.mimeType } });
+    }
+    
+    for (const ref of referenceFiles) {
+      parts.push({ inlineData: { data: ref.data, mimeType: ref.mimeType } });
+    }
+    
+    parts.push({
+      text: `主題：${sessionTitle}。請區分老師與不同學生，並參考修正表：${ERROR_CORRECTION_TABLE}`
+    });
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
@@ -73,7 +80,9 @@ export async function transcribeAudio(
       }
     });
 
-    const result = JSON.parse(cleanJsonString(response.text || '{}'));
+    const text = response.text || '{}';
+    const result = JSON.parse(cleanJsonString(text));
+    
     return { 
       ...result, 
       id: `trans-${crypto.randomUUID()}`, 
@@ -99,4 +108,4 @@ export async function generateStudyNotes(content: string, title: string, courseN
     }
   });
   return response.text || "";
-} 
+}
