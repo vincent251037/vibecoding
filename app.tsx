@@ -25,8 +25,6 @@ const DEFAULT_COURSES = [
   "初期大乘佛教的起源與開展"
 ];
 
-const getAiStudio = () => (window as any).aistudio;
-
 const App: React.FC = () => {
   const [courses, setCourses] = useState<string[]>(() => {
     const saved = localStorage.getItem('user_courses');
@@ -46,9 +44,6 @@ const App: React.FC = () => {
   const [sessionTitle, setSessionTitle] = useState("");
   const [progress, setProgress] = useState(0);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
-
-  const [isDraggingAudio, setIsDraggingAudio] = useState(false);
-  const [isDraggingRef, setIsDraggingRef] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('user_courses', JSON.stringify(courses));
@@ -100,18 +95,6 @@ const App: React.FC = () => {
     if (audioFiles.length === 0) return;
 
     try {
-      const aistudio = getAiStudio();
-      const currentKey = (process as any).env?.API_KEY;
-
-      // 如果當前環境支援 aistudio 介面且金鑰缺失，則嘗試開啟選擇器
-      if (aistudio && !currentKey) {
-        const hasKey = await aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          await aistudio.openSelectKey();
-          return;
-        }
-      }
-
       setStatus(AppStatus.PROCESSING);
       setProgress(5);
       const timer = setInterval(() => setProgress(prev => prev < 95 ? prev + 2 : prev), 1000);
@@ -128,11 +111,7 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
-      alert(`轉錄失敗: ${e.message || "請檢查 API 金鑰是否已正確授權。"}`);
-      const aistudio = getAiStudio();
-      if (aistudio && e.message?.includes("API Key")) {
-        await aistudio.openSelectKey();
-      }
+      alert(`轉錄失敗: ${e.message || "請確保 API Key 已正確配置或環境變數已生效。"}`);
     }
   };
 
@@ -176,18 +155,11 @@ const App: React.FC = () => {
             <i className={`fa-solid ${selectedCourse.includes("佛") ? 'fa-dharmachakra' : 'fa-brain'} animate-spin-slow`}></i> {selectedCourse}轉錄專家
           </h1>
           <p className="text-[#9a3412] mt-1 italic flex items-center gap-2 text-sm">
-            <i className="fa-solid fa-bolt"></i> 已優化：Gemini 3.0 Flash 高速引擎
+            <i className="fa-solid fa-bolt"></i> 學術引擎：Gemini 3.0 Flash 高速版
           </p>
         </div>
         
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => getAiStudio()?.openSelectKey()}
-            className="flex items-center gap-2 bg-[#d4a017] hover:bg-[#b8860b] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95"
-          >
-            <i className="fa-solid fa-key"></i> 授權金鑰
-          </button>
-          
           <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-[#e6d5b8]">
             <select 
               value={selectedCourse} 
@@ -292,7 +264,7 @@ const App: React.FC = () => {
                 {status === AppStatus.PROCESSING ? <i className="fa-solid fa-dharmachakra fa-spin text-2xl"></i> : <i className="fa-solid fa-scroll text-2xl"></i>}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center italic px-4">使用 Flash 高速引擎。若在 GitHub Pages 執行，請確保已配置 API Key 環境變數。</p>
+              <p className="text-[10px] text-stone-400 text-center italic px-4">使用系統配置之 API Key 直接執行。轉錄長度視金鑰額度而定。</p>
             </div>
           </div>
         </section>
@@ -339,9 +311,15 @@ const App: React.FC = () => {
         )}
       </main>
 
+      <footer className="text-center mt-24 pb-16">
+        <div className="text-[#9a3412]/40 text-sm font-bold tracking-[0.2em] uppercase">Academic Transcriber System</div>
+        <div className="text-[#9a3412]/20 text-xs mt-2 italic tracking-widest">Powered by Gemini 3.0 Flash</div>
+      </footer>
+
       <style>{`
         .animate-spin-slow { animation: spin 12s linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e6d5b8; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #7c2d12; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
