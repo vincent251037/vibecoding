@@ -1,13 +1,12 @@
 {
   "name": "vibecoding",
-  "private": true,
-  "version": "2.1.0",
+ "private": true,
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {

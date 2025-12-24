@@ -142,16 +142,8 @@ const App: React.FC = () => {
         finalTitle,
         selectedCourse
       );
-      const newResult: TranscriptionResult = { 
-        ...data, 
-        id: `trans-${crypto.randomUUID()}`, 
-        timestamp: Date.now(), 
-        courseName: selectedCourse,
-        latestVersion: 0,
-        previousVersion: 0
-      };
-      setLibrary(prev => [newResult, ...prev]);
-      setActiveResult(newResult);
+      setLibrary(prev => [data, ...prev]);
+      setActiveResult(data);
       setViewMode('transcript');
       setStatus(AppStatus.COMPLETED);
       setAudioFiles([]);
@@ -200,14 +192,12 @@ const App: React.FC = () => {
     if (viewMode === 'latest_notes' && activeResult.notesLatest) {
         content = `【第 ${activeResult.latestVersion} 版學術整理筆記】\n\n${activeResult.notesLatest}`;
         vText = ` (第 ${activeResult.latestVersion} 版)`;
-    }
-    if (viewMode === 'previous_notes' && activeResult.notesPrevious) {
+    } else if (viewMode === 'previous_notes' && activeResult.notesPrevious) {
         content = `【第 ${activeResult.previousVersion} 版學術整理筆記】\n\n${activeResult.notesPrevious}`;
         vText = ` (第 ${activeResult.previousVersion} 版)`;
     }
 
     const title = activeResult.title + vText;
-    const course = activeResult.courseName || '學術講座';
 
     if (format === 'pdf') {
       const printWindow = window.open('', '_blank');
@@ -266,7 +256,15 @@ const App: React.FC = () => {
     const orderedItems = selectedIds.map(id => library.find(item => item.id === id)).filter((item): item is TranscriptionResult => !!item);
     if (orderedItems.length < 2) return;
     const mergedContent = orderedItems.map(item => `【原文件：${item.title}】\n${item.content}`).join('\n\n' + '='.repeat(20) + '\n\n');
-    const newResult: TranscriptionResult = { id: `trans-${crypto.randomUUID()}`, title: `合併主題 - ${new Date().toLocaleDateString()}`, content: mergedContent, timestamp: Date.now(), courseName: orderedItems[0].courseName, latestVersion: 0, previousVersion: 0 };
+    const newResult: TranscriptionResult = { 
+      id: `trans-${crypto.randomUUID()}`, 
+      title: `合併主題 - ${new Date().toLocaleDateString()}`, 
+      content: mergedContent, 
+      timestamp: Date.now(), 
+      courseName: orderedItems[0].courseName, 
+      latestVersion: 0, 
+      previousVersion: 0 
+    };
     setLibrary(prev => [newResult, ...prev]);
     setActiveResult(newResult);
     setSelectedIds([]);
@@ -409,7 +407,7 @@ const App: React.FC = () => {
                 <button disabled={!activeResult.notesPrevious} onClick={() => setViewMode('previous_notes')} className={`px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-lg active:scale-95 ${!activeResult.notesPrevious ? 'opacity-40 cursor-not-allowed bg-stone-700' : viewMode === 'previous_notes' ? 'bg-orange-100 text-orange-900 ring-2 ring-white' : 'bg-orange-800 text-white hover:bg-orange-700'}`}>
                   B. 原整理筆記 (第 {activeResult.previousVersion} 版)
                 </button>
-                <button onClick={() => { if (viewMode !== 'latest_notes' || !activeResult.notesLatest) { if (!activeResult.notesLatest) createStudyNotes(); else setViewMode('latest_notes'); } else { createStudyNotes(); } }} className={`px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-lg active:scale-95 flex items-center gap-2 ${isGeneratingNotes ? 'bg-orange-200 text-orange-900 animate-pulse' : viewMode === 'latest_notes' && activeResult.notesLatest ? 'bg-orange-100 text-orange-900 ring-2 ring-white' : 'bg-white text-orange-900 hover:bg-orange-50'}`}>
+                <button onClick={() => { if (!activeResult.notesLatest) createStudyNotes(); else if (viewMode !== 'latest_notes') setViewMode('latest_notes'); else createStudyNotes(); }} className={`px-4 py-2.5 rounded-xl font-bold text-sm transition shadow-lg active:scale-95 flex items-center gap-2 ${isGeneratingNotes ? 'bg-orange-200 text-orange-900 animate-pulse' : viewMode === 'latest_notes' && activeResult.notesLatest ? 'bg-orange-100 text-orange-900 ring-2 ring-white' : 'bg-white text-orange-900 hover:bg-orange-50'}`}>
                   {isGeneratingNotes ? <><i className="fa-solid fa-spinner animate-spin"></i> 整理中</> : <>C. {activeResult.notesLatest ? `重新整理筆記 (第 ${activeResult.latestVersion + 1} 版)` : '整理學術精華 (第 1 版)'}</>}
                 </button>
                 <div className="relative ml-2">
@@ -433,7 +431,7 @@ const App: React.FC = () => {
             
             <div className="bg-orange-50 px-10 py-4 text-xs text-orange-800 font-bold border-t border-orange-100 flex justify-between items-center">
               <div className="flex items-center gap-2"><i className="fa-solid fa-circle-info"></i><span>當前檢視：{viewMode === 'transcript' ? '原始逐字稿 (含角色區分)' : viewMode === 'latest_notes' ? `最新整理精華 (第 ${activeResult.latestVersion || 0} 版)` : `上一版整理紀錄 (第 ${activeResult.previousVersion || 0} 版)`}</span></div>
-              <div className="flex items-center gap-3"><span className="text-orange-900/40">學術版本管理系統 v2.1</span></div>
+              <div className="flex items-center gap-3"><span className="text-orange-900/40">學術版本管理系統 v2.3</span></div>
             </div>
           </div>
         )}
