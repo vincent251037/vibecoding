@@ -45,6 +45,9 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
 
+  const [isDraggingAudio, setIsDraggingAudio] = useState(false);
+  const [isDraggingRef, setIsDraggingRef] = useState(false);
+
   useEffect(() => {
     localStorage.setItem('user_courses', JSON.stringify(courses));
   }, [courses]);
@@ -91,6 +94,21 @@ const App: React.FC = () => {
     }
   };
 
+  // 拖放處理邏輯
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent, isAudio: boolean, setDragging: (v: boolean) => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files, isAudio);
+    }
+  };
+
   const handleStartTranscription = async () => {
     if (audioFiles.length === 0) return;
 
@@ -111,7 +129,7 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.error("Transcription Failed:", e);
       setStatus(AppStatus.ERROR);
-      alert(`轉錄失敗: ${e.message || "請確保 API Key 已正確配置或環境變數已生效。"}`);
+      alert(`轉錄失敗: ${e.message || "請確保環境配置正確。"}`);
     }
   };
 
@@ -207,11 +225,21 @@ const App: React.FC = () => {
                 <input value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} placeholder="輸入課程紀錄標題..." className="w-full p-4 bg-[#fdfaf3] border border-[#e6d5b8] rounded-xl outline-none text-lg font-medium" />
               </div>
 
-              <div className="space-y-3 p-6 rounded-xl border-2 border-dashed border-[#e6d5b8] bg-[#fffcf5]">
-                <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">待轉錄音檔 ({audioFiles.length})</label>
+              {/* 音檔上傳區塊（修復拖放） */}
+              <div 
+                className={`space-y-3 p-6 rounded-xl border-2 border-dashed transition-all ${isDraggingAudio ? 'border-[#7c2d12] bg-[#7c2d12]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fffcf5]'}`}
+                onDragOver={handleDragOver}
+                onDragEnter={() => setIsDraggingAudio(true)}
+                onDragLeave={() => setIsDraggingAudio(false)}
+                onDrop={(e) => handleDrop(e, true, setIsDraggingAudio)}
+              >
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">待轉錄音檔 ({audioFiles.length})</label>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">可直接將音檔拖入此處</span>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {audioFiles.map((f, i) => (
-                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+                    <div key={i} className="bg-[#7c2d12] text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
                       <span className="max-w-[150px] truncate">{f.name}</span>
                       <button onClick={() => setAudioFiles(prev => prev.filter((_, idx) => idx !== i))}><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
@@ -223,11 +251,21 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-3 p-6 rounded-xl border-2 border-dashed border-[#e6d5b8] bg-[#fdfaf3]">
-                <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助資料 ({referenceFiles.length})</label>
+              {/* 輔助資料區塊（修復拖放） */}
+              <div 
+                className={`space-y-3 p-6 rounded-xl border-2 border-dashed transition-all ${isDraggingRef ? 'border-[#9a3412] bg-[#9a3412]/5 scale-[1.01]' : 'border-[#e6d5b8] bg-[#fdfaf3]'}`}
+                onDragOver={handleDragOver}
+                onDragEnter={() => setIsDraggingRef(true)}
+                onDragLeave={() => setIsDraggingRef(false)}
+                onDrop={(e) => handleDrop(e, false, setIsDraggingRef)}
+              >
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-[#7c2d12] uppercase tracking-widest">輔助資料 ({referenceFiles.length})</label>
+                  <span className="text-[10px] text-[#9a3412]/50 italic">可直接將文件拖入此處</span>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {referenceFiles.map((f, i) => (
-                    <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+                    <div key={i} className="bg-[#e6d5b8] text-[#7c2d12] px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 border border-[#d4bd94]">
                       <span className="max-w-[150px] truncate">{f.name}</span>
                       <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><i className="fa-solid fa-circle-xmark"></i></button>
                     </div>
@@ -258,13 +296,13 @@ const App: React.FC = () => {
               <button 
                 onClick={handleStartTranscription} 
                 disabled={audioFiles.length === 0 || status === AppStatus.PROCESSING} 
-                className={`w-full py-6 rounded-2xl font-bold text-xl shadow-xl transition-all flex items-center justify-center gap-4
+                className={`w-full py-6 rounded-2xl font-bold text-xl shadow-xl transition-all flex items-center justify-center gap-4 active:scale-95
                   ${audioFiles.length === 0 ? 'bg-stone-200 text-stone-400 cursor-not-allowed' : 'bg-[#7c2d12] text-[#fffcf5] hover:bg-[#5d1a04]'}`}
               >
                 {status === AppStatus.PROCESSING ? <i className="fa-solid fa-dharmachakra fa-spin text-2xl"></i> : <i className="fa-solid fa-scroll text-2xl"></i>}
                 {status === AppStatus.PROCESSING ? "學術轉錄中..." : "啟動學術轉錄"}
               </button>
-              <p className="text-[10px] text-stone-400 text-center italic px-4">使用系統配置之 API Key 直接執行。轉錄長度視金鑰額度而定。</p>
+              <p className="text-[10px] text-stone-400 text-center italic px-4">Flash 高速引擎已啟動。支援直接拖放檔案至虛線區域。</p>
             </div>
           </div>
         </section>
@@ -311,12 +349,9 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="text-center mt-24 pb-16">
-        <div className="text-[#9a3412]/40 text-sm font-bold tracking-[0.2em] uppercase">Academic Transcriber System</div>
-        <div className="text-[#9a3412]/20 text-xs mt-2 italic tracking-widest">Powered by Gemini 3.0 Flash</div>
-      </footer>
-
       <style>{`
+        @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
         .animate-spin-slow { animation: spin 12s linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
