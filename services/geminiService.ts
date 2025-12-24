@@ -26,10 +26,10 @@ const getSystemInstruction = (courseName: string, sessionTitle: string) => `
 你是一位具備深厚學術功底的「${courseName}」領域紀錄專家。
 
 核心任務：
-1. **精準轉錄**：將音檔轉化為文字，嚴禁濃縮。
-2. **術語校對**：結合上傳的參考文件，修正專有名詞（如梵文譯名、佛教術語）。
-3. **角色識別**：必須區分「老師：」與「學生 1：」、「學生 2：」等發言者。
-4. **格式**：重要術語或結論以 **粗體** 標示。
+1. **精準轉錄**：將音檔轉化為文字，嚴禁濃縮內容。
+2. **術語校對**：修正專有名詞（如梵文譯名、佛教術語）。
+3. **角色識別**：區分「老師：」與「學生：」發言。
+4. **格式**：重要術語以 **粗體** 標示。
 
 請輸出 JSON 格式：
 {
@@ -49,12 +49,7 @@ export async function transcribeAudio(
   sessionTitle: string,
   courseName: string
 ): Promise<TranscriptionResult> {
-  // 每次呼叫時重新取得 API KEY 確保最新
   const apiKey = (process as any).env?.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key is missing. 請先點擊畫面右上方的「授權金鑰」。");
-  }
-
   const ai = new GoogleGenAI({ apiKey });
   
   const parts: any[] = [];
@@ -70,12 +65,11 @@ export async function transcribeAudio(
   });
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview', // 改用 Flash 模型
+    model: 'gemini-3-flash-preview',
     contents: { parts },
     config: {
       systemInstruction: getSystemInstruction(courseName, sessionTitle),
       responseMimeType: "application/json",
-      // Flash 模型同樣支援思考模式，但建議稍微減少預算以換取更快的速度
       thinkingConfig: { thinkingBudget: 16384 },
       responseSchema: {
         type: Type.OBJECT,
@@ -102,15 +96,12 @@ export async function transcribeAudio(
 
 export async function generateStudyNotes(content: string, title: string, courseName: string): Promise<string> {
   const apiKey = (process as any).env?.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key is missing.");
-  }
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview', // 改用 Flash 模型
+    model: 'gemini-3-flash-preview',
     contents: `主題：${title}\n\n內容：\n${content}`,
     config: {
-      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記，使用 Markdown 格式，包含重點摘要、邏輯分析與專有名詞解釋。`,
+      systemInstruction: `請為「${courseName}」課程內容生成精煉且具深度的學術筆記。`,
     }
   });
   return response.text || "";
